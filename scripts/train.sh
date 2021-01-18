@@ -6,7 +6,7 @@ SRC_DIR=`dirname "$0"`/../src
 
 python $SRC_DIR/train_seq2seq.py \
     --do_train \
-    --per_device_train_batch_size 3 \
-    --logging_steps 1 \
+    --per_device_train_batch_size 2 \
+    --logging_steps 10 \
     --data_json $DATA_DIR/ria_1k.json \
     --output_dir $OUT_DIR

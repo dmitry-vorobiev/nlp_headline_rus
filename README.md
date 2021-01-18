@@ -1,2 +1,2 @@
 # nlp_headline_rus
-Text headline (title) generation using neural nets
+News headline (title) generation using neural nets, trained on RIA dataset (russian lang)
