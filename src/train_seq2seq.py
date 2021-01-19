@@ -156,25 +156,32 @@ def main():
     tokenizer.eos_token = tokenizer.sep_token
     preprocess_inputs = create_preprocess_fn(tokenizer)
 
-    dataset = load_dataset(
-        'json',
-        data_files=[data_args.data_json],
-        split='train',
-        cache_dir=cache_dir
-    ).map(clean_html_tags, input_columns='text')
+    dataset = (load_dataset('json',
+                            data_files=[data_args.data_json],
+                            split='train',
+                            cache_dir=cache_dir)
+               .map(clean_html_tags, input_columns='text')
+               .train_test_split(test_size=data_args.n_val, shuffle=False))
 
-    train_data = dataset.map(
+    train_data = dataset['train'].map(
         preprocess_inputs,
         batched=True,
-        batch_size=4,
+        batch_size=training_args.per_device_train_batch_size,
         remove_columns=["text", "title"]
     )
 
-    train_data.set_format(
-        type="torch",
-        columns=["input_ids", "attention_mask", "decoder_input_ids", "decoder_attention_mask",
-                 "labels"],
+    eval_data = dataset['test'].map(
+        preprocess_inputs,
+        batched=True,
+        batch_size=training_args.per_device_eval_batch_size,
+        remove_columns=["text", "title"]
     )
+
+    for d in [train_data, eval_data]:
+        d.set_format(
+            type="torch",
+            columns=["input_ids", "attention_mask", "decoder_input_ids", "decoder_attention_mask",
+                     "labels"])
 
     model = EncoderDecoderModel.from_encoder_decoder_pretrained(
         model_name, model_name, cache_dir=cache_dir)
@@ -183,8 +190,7 @@ def main():
         model=model,
         args=training_args,
         train_dataset=train_data,
-        # eval_dataset=eval_dataset,
-        # data_collator=Seq2SeqDataCollator(tokenizer, data_args, training_args.tpu_num_cores),
+        eval_dataset=eval_data,
         # compute_metrics=compute_metrics_fn,
         tokenizer=tokenizer,
     )
