@@ -3,8 +3,8 @@ from typing import Any, Dict
 
 
 def create_preprocess_fn(tokenizer: PreTrainedTokenizer,
-                         encoder_max_length=512,
-                         decoder_max_length=128):
+                         max_input_len=512,
+                         max_output_len=128):
     """
     Mostly copied from:
     https://github.com/patrickvonplaten/notebooks/blob/master/BERT2BERT_for_CNN_Dailymail.ipynb
@@ -14,14 +14,14 @@ def create_preprocess_fn(tokenizer: PreTrainedTokenizer,
             text=batch["text"],
             padding="max_length",
             truncation=True,
-            max_length=encoder_max_length,
+            max_length=max_input_len,
         )
 
         outputs = tokenizer(
             text=batch["title"],
             padding="max_length",
             truncation=True,
-            max_length=decoder_max_length,
+            max_length=max_output_len,
         )
 
         batch["input_ids"] = inputs.input_ids

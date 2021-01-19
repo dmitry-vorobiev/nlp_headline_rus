@@ -9,8 +9,8 @@ import re
 import transformers
 
 from dataclasses import dataclass, field
-from datasets import load_dataset
-from transformers import AutoTokenizer, EncoderDecoderModel, HfArgumentParser, \
+from datasets import load_dataset, load_metric
+from transformers import AutoTokenizer, EncoderDecoderModel, EvalPrediction, HfArgumentParser, \
     Seq2SeqTrainer, Seq2SeqTrainingArguments, set_seed
 from transformers.trainer_utils import EvaluationStrategy, is_main_process
 from transformers.training_args import ParallelMode
@@ -154,28 +154,32 @@ def main():
     )
     tokenizer.bos_token = tokenizer.cls_token
     tokenizer.eos_token = tokenizer.sep_token
-    preprocess_inputs = create_preprocess_fn(tokenizer)
 
+    test_size = data_args.n_val if data_args.n_val > 0 else 0.1
     dataset = (load_dataset('json',
                             data_files=[data_args.data_json],
                             split='train',
                             cache_dir=cache_dir)
                .map(clean_html_tags, input_columns='text')
-               .train_test_split(test_size=data_args.n_val, shuffle=False))
+               .train_test_split(test_size=test_size, shuffle=False))
+
+    preprocess_train = create_preprocess_fn(
+        tokenizer, data_args.max_source_length, data_args.max_target_length)
+    preprocess_eval = create_preprocess_fn(
+        tokenizer, data_args.max_source_length, data_args.val_max_target_length)
 
     train_data = dataset['train'].map(
-        preprocess_inputs,
+        preprocess_train,
         batched=True,
         batch_size=training_args.per_device_train_batch_size,
         remove_columns=["text", "title"]
-    )
+    ).shuffle(seed=training_args.seed)
 
     eval_data = dataset['test'].map(
-        preprocess_inputs,
+        preprocess_eval,
         batched=True,
         batch_size=training_args.per_device_eval_batch_size,
-        remove_columns=["text", "title"]
-    )
+        remove_columns=["text", "title"])
 
     for d in [train_data, eval_data]:
         d.set_format(
@@ -183,15 +187,47 @@ def main():
             columns=["input_ids", "attention_mask", "decoder_input_ids", "decoder_attention_mask",
                      "labels"])
 
+    rouge = load_metric("rouge")
+
+    def compute_metrics(output: EvalPrediction):
+        labels_ids = output.label_ids
+        prediction_ids = output.predictions
+
+        predicted_str = tokenizer.batch_decode(prediction_ids, skip_special_tokens=True)
+        labels_ids[labels_ids == -100] = tokenizer.pad_token_id
+        label_str = tokenizer.batch_decode(labels_ids, skip_special_tokens=True)
+
+        rouge_output = rouge.compute(
+            predictions=predicted_str, references=label_str, rouge_types=["rouge2"]
+        )["rouge2"].mid
+
+        return {
+            "rouge2_precision": round(rouge_output.precision, 4),
+            "rouge2_recall": round(rouge_output.recall, 4),
+            "rouge2_fmeasure": round(rouge_output.fmeasure, 4),
+        }
+
     model = EncoderDecoderModel.from_encoder_decoder_pretrained(
         model_name, model_name, cache_dir=cache_dir)
+
+    model.config.decoder_start_token_id = tokenizer.bos_token_id
+    model.config.eos_token_id = tokenizer.eos_token_id
+    model.config.pad_token_id = tokenizer.pad_token_id
+
+    # model.config.vocab_size = model.config.decoder.vocab_size
+    # model.config.num_beams = 4
+    # model.config.max_length = 128
+    # model.config.min_length = 32
+    # model.config.no_repeat_ngram_size = 3
+    # model.config.early_stopping = True
+    # model.config.length_penalty = 2.0
 
     trainer = Seq2SeqTrainer(
         model=model,
         args=training_args,
         train_dataset=train_data,
         eval_dataset=eval_data,
-        # compute_metrics=compute_metrics_fn,
+        compute_metrics=compute_metrics,
         tokenizer=tokenizer,
     )
 
@@ -226,6 +262,8 @@ def main():
         )
         metrics["val_n_objs"] = data_args.n_val
         metrics["val_loss"] = round(metrics["val_loss"], 4)
+
+        # TODO: save prediction examples, print metric score
 
 
 if __name__ == "__main__":
