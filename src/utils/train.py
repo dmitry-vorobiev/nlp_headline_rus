@@ -1,6 +1,8 @@
 from transformers import PreTrainedTokenizer
 from typing import Any, Dict
 
+PAD_LABEL = -100
+
 
 def create_preprocess_fn(tokenizer: PreTrainedTokenizer,
                          max_input_len=512,
@@ -32,7 +34,8 @@ def create_preprocess_fn(tokenizer: PreTrainedTokenizer,
 
         # because BERT automatically shifts the labels, the labels correspond exactly to `decoder_input_ids`.
         # We have to make sure that the PAD token is ignored
-        batch["labels"] = [[-100 if token == tokenizer.pad_token_id else token for token in labels]
+        pad_token = tokenizer.pad_token_id
+        batch["labels"] = [[PAD_LABEL if token == pad_token else token for token in labels]
                            for labels in batch["labels"]]
 
         return batch

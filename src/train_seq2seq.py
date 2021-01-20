@@ -11,13 +11,14 @@ import transformers
 from dataclasses import dataclass, field
 from datasets import load_dataset, load_metric
 from transformers import AutoTokenizer, EncoderDecoderModel, EvalPrediction, HfArgumentParser, \
-    Seq2SeqTrainer, Seq2SeqTrainingArguments, set_seed
+    PreTrainedModel, PreTrainedTokenizer, Seq2SeqTrainer, Seq2SeqTrainingArguments, set_seed
 from transformers.trainer_utils import EvaluationStrategy, is_main_process
 from transformers.training_args import ParallelMode
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
-from utils.filesys import check_output_dir
-from utils.train import create_preprocess_fn
+from utils.filesys import check_output_dir, save_json, write_txt_file
+from utils.model import assert_all_frozen, freeze_embeds, freeze_params
+from utils.train import PAD_LABEL, create_preprocess_fn
 
 cur_dir = os.path.dirname(__file__)
 default_cache_dir = os.path.join(cur_dir, ".cache")
@@ -73,6 +74,12 @@ class DataTrainingArguments:
                     "during ``evaluate`` and ``predict``."
         },
     )
+    eval_split: Optional[float] = field(
+        default=0.1,
+        metadata={
+            "help": "Fraction of dataset or # of samples to use for evaluation."
+        }
+    )
     n_train: Optional[int] = field(
         default=-1,
         metadata={"help": "# training examples. -1 means use all."}
@@ -81,10 +88,15 @@ class DataTrainingArguments:
         default=-1,
         metadata={"help": "# validation examples. -1 means use all."}
     )
+    n_test: Optional[int] = field(
+        default=-1,
+        metadata={"help": "# test examples. -1 means use all."}
+    )
     eval_beams: Optional[int] = field(
-        default=None,
+        default=3,
         metadata={"help": "# num_beams to use for evaluation."}
     )
+    # TODO: do we use it?
     ignore_pad_token_for_loss: bool = field(
         default=True,
         metadata={
@@ -104,6 +116,36 @@ def clean_html_tags(s: str) -> Dict[str, str]:
     s = re.sub('&amp;', '&', s)
     s = re.sub('\s\s+', ' ', s)
     return dict(text=s)
+
+
+def handle_metrics(split, metrics, output_dir):
+    """
+    Log and save metrics
+    Args:
+    - split: one of train, val, test
+    - metrics: metrics dict
+    - output_dir: where to save the metrics
+    """
+
+    logger.info(f"***** {split} metrics *****")
+    for key in sorted(metrics.keys()):
+        logger.info(f"  {key} = {metrics[key]}")
+    save_json(metrics, os.path.join(output_dir, f"{split}_results.json"))
+
+
+def update_model_config(model: PreTrainedModel, tokenizer: PreTrainedTokenizer):
+    c = model.config
+    c.decoder_start_token_id = tokenizer.bos_token_id
+    c.eos_token_id = tokenizer.eos_token_id
+    c.pad_token_id = tokenizer.pad_token_id
+
+    # c.vocab_size = c.decoder.vocab_size
+    c.num_beams = 4
+    c.max_length = 128
+    c.min_length = 32
+    c.no_repeat_ngram_size = 3
+    c.early_stopping = True
+    c.length_penalty = 2.0
 
 
 def main():
@@ -155,13 +197,12 @@ def main():
     tokenizer.bos_token = tokenizer.cls_token
     tokenizer.eos_token = tokenizer.sep_token
 
-    test_size = data_args.n_val if data_args.n_val > 0 else 0.1
     dataset = (load_dataset('json',
                             data_files=[data_args.data_json],
                             split='train',
                             cache_dir=cache_dir)
                .map(clean_html_tags, input_columns='text')
-               .train_test_split(test_size=test_size, shuffle=False))
+               .train_test_split(test_size=data_args.eval_split, shuffle=False))
 
     preprocess_train = create_preprocess_fn(
         tokenizer, data_args.max_source_length, data_args.max_target_length)
@@ -194,7 +235,7 @@ def main():
         prediction_ids = output.predictions
 
         predicted_str = tokenizer.batch_decode(prediction_ids, skip_special_tokens=True)
-        labels_ids[labels_ids == -100] = tokenizer.pad_token_id
+        labels_ids[labels_ids == PAD_LABEL] = tokenizer.pad_token_id
         label_str = tokenizer.batch_decode(labels_ids, skip_special_tokens=True)
 
         rouge_output = rouge.compute(
@@ -209,18 +250,13 @@ def main():
 
     model = EncoderDecoderModel.from_encoder_decoder_pretrained(
         model_name, model_name, cache_dir=cache_dir)
+    update_model_config(model, tokenizer)
 
-    model.config.decoder_start_token_id = tokenizer.bos_token_id
-    model.config.eos_token_id = tokenizer.eos_token_id
-    model.config.pad_token_id = tokenizer.pad_token_id
-
-    # model.config.vocab_size = model.config.decoder.vocab_size
-    # model.config.num_beams = 4
-    # model.config.max_length = 128
-    # model.config.min_length = 32
-    # model.config.no_repeat_ngram_size = 3
-    # model.config.early_stopping = True
-    # model.config.length_penalty = 2.0
+    if model_args.freeze_embeds:
+        freeze_embeds(model)
+    if model_args.freeze_encoder:
+        freeze_params(model.get_encoder())
+        assert_all_frozen(model.get_encoder())
 
     trainer = Seq2SeqTrainer(
         model=model,
@@ -230,6 +266,7 @@ def main():
         compute_metrics=compute_metrics,
         tokenizer=tokenizer,
     )
+    all_metrics = dict()
 
     # Training
     if training_args.do_train:
@@ -244,6 +281,9 @@ def main():
         trainer.save_model()  # this also saves the tokenizer
 
         if trainer.is_world_process_zero():
+            handle_metrics("train", metrics, training_args.output_dir)
+            all_metrics.update(metrics)
+
             # Need to save the state, since Trainer.save_model saves only the tokenizer with the model
             trainer.state.save_to_json(os.path.join(training_args.output_dir, "trainer_state.json"))
 
@@ -258,12 +298,45 @@ def main():
         metrics = trainer.evaluate(
             metric_key_prefix="val",
             max_length=data_args.val_max_target_length,
-            num_beams=data_args.eval_beams
+            num_beams=data_args.eval_beams or model.config.num_beams
         )
         metrics["val_n_objs"] = data_args.n_val
         metrics["val_loss"] = round(metrics["val_loss"], 4)
 
-        # TODO: save prediction examples, print metric score
+        if trainer.is_world_process_zero():
+            handle_metrics("val", metrics, training_args.output_dir)
+            all_metrics.update(metrics)
+
+    if training_args.do_predict:
+        logger.info("*** Predict ***")
+
+        output = trainer.predict(
+            test_dataset=eval_data,
+            metric_key_prefix="test",
+            max_length=data_args.val_max_target_length,
+            num_beams=data_args.eval_beams or model.config.num_beams
+        )
+        metrics = output.metrics
+        metrics["test_n_objs"] = data_args.n_test
+
+        if trainer.is_world_process_zero():
+            metrics["test_loss"] = round(metrics["test_loss"], 4)
+            handle_metrics("test", metrics, training_args.output_dir)
+            all_metrics.update(metrics)
+
+            if training_args.predict_with_generate:
+                predictions = tokenizer.batch_decode(
+                    output.predictions,
+                    skip_special_tokens=True,
+                    clean_up_tokenization_spaces=True
+                )
+                predictions = list(map(str.strip, predictions))
+                write_txt_file(predictions, os.path.join(training_args.output_dir, "test_generations.txt"))
+
+    if trainer.is_world_process_zero():
+        save_json(all_metrics, os.path.join(training_args.output_dir, "all_results.json"))
+
+    return all_metrics
 
 
 if __name__ == "__main__":

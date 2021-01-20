@@ -1,4 +1,18 @@
+import json
 import os
+from pathlib import Path
+
+
+def save_json(content, path, indent=4, **json_dump_kwargs):
+    with open(path, "w") as f:
+        json.dump(content, f, indent=indent, sort_keys=True, **json_dump_kwargs)
+
+
+def write_txt_file(ordered_tgt, path):
+    f = Path(path).open("w")
+    for ln in ordered_tgt:
+        f.write(ln + "\n")
+        f.flush()
 
 
 def check_output_dir(args, expected_items=0):
