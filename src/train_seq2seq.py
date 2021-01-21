@@ -9,13 +9,13 @@ import re
 import transformers
 
 from dataclasses import dataclass, field
-from datasets import load_dataset, load_metric
+from datasets import load_dataset, load_from_disk, load_metric
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, EncoderDecoderModel, \
     EvalPrediction, HfArgumentParser, PreTrainedModel, PreTrainedTokenizer, Seq2SeqTrainer, \
     Seq2SeqTrainingArguments, set_seed
-from transformers.trainer_utils import EvaluationStrategy, is_main_process
+from transformers.trainer_utils import is_main_process
 from transformers.training_args import ParallelMode
-from typing import Dict, Optional, Union
+from typing import Dict, Optional
 
 from utils.filesys import check_output_dir, save_json, write_txt_file
 from utils.model import assert_all_frozen, freeze_embeds, freeze_params
@@ -49,8 +49,21 @@ class ModelArguments:
 
 @dataclass
 class DataTrainingArguments:
-    data_json: str = field(
+    data_json: Optional[str] = field(
+        default=None,
         metadata={"help": "The input .json file"}
+    )
+    save_data_to: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Save preprocessed dataset to this directory"
+        }
+    )
+    load_data_from: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Load preprocessed dataset from this directory"
+        }
     )
     max_source_length: Optional[int] = field(
         default=512,
@@ -79,6 +92,12 @@ class DataTrainingArguments:
         default=0.1,
         metadata={
             "help": "Fraction of dataset or # of samples to use for evaluation."
+        }
+    )
+    tokenizer_batch_size: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "Batch size to use for text tokenization"
         }
     )
     n_train: Optional[int] = field(
@@ -198,36 +217,57 @@ def main():
     tokenizer.bos_token = tokenizer.cls_token
     tokenizer.eos_token = tokenizer.sep_token
 
-    dataset = (load_dataset('json',
-                            data_files=[data_args.data_json],
-                            split='train',
-                            cache_dir=cache_dir)
-               .map(clean_html_tags, input_columns='text')
-               .train_test_split(test_size=data_args.eval_split, shuffle=False))
+    json_path = data_args.data_json
+    if json_path is not None:
+        logger.info("Preprocessing new dataset from {}".format(json_path))
+        dataset = (load_dataset('json',
+                                data_files=[json_path],
+                                split='train',
+                                cache_dir=cache_dir)
+                   .map(clean_html_tags, input_columns='text')
+                   .train_test_split(test_size=data_args.eval_split, shuffle=False))
 
-    preprocess_train = create_preprocess_fn(
-        tokenizer, data_args.max_source_length, data_args.max_target_length)
-    preprocess_eval = create_preprocess_fn(
-        tokenizer, data_args.max_source_length, data_args.val_max_target_length)
+        preprocess_train = create_preprocess_fn(
+            tokenizer, data_args.max_source_length, data_args.max_target_length)
+        preprocess_eval = create_preprocess_fn(
+            tokenizer, data_args.max_source_length, data_args.val_max_target_length)
+        prep_bs = data_args.tokenizer_batch_size
 
-    train_data = dataset['train'].map(
-        preprocess_train,
-        batched=True,
-        batch_size=training_args.per_device_train_batch_size,
-        remove_columns=["text", "title"]
-    ).shuffle(seed=training_args.seed)
+        dataset["train"] = dataset["train"].map(
+            preprocess_train,
+            batched=True,
+            batch_size=prep_bs,
+            remove_columns=["text", "title"]
+        ).shuffle(seed=training_args.seed)
 
-    eval_data = dataset['test'].map(
-        preprocess_eval,
-        batched=True,
-        batch_size=training_args.per_device_eval_batch_size,
-        remove_columns=["text", "title"])
+        dataset["test"] = dataset["test"].map(
+            preprocess_eval,
+            batched=True,
+            batch_size=prep_bs,
+            remove_columns=["text", "title"])
 
-    for d in [train_data, eval_data]:
-        d.set_format(
+        dataset.set_format(
             type="torch",
             columns=["input_ids", "attention_mask", "decoder_input_ids", "decoder_attention_mask",
-                     "labels"])
+                     "labels"]
+        )
+
+        if data_args.save_data_to is not None:
+            save_dir = data_args.save_data_to
+            if not os.path.exists(save_dir):
+                os.mkdir(save_dir)
+            logger.info("Saving preprocessed dataset to {}".format(save_dir))
+            dataset.save_to_disk(save_dir)
+
+    elif data_args.load_data_from is not None:
+        data_dir = data_args.load_data_from
+        logger.info("Loading preprocessed dataset from {}".format(data_dir))
+        dataset = load_from_disk(data_dir)
+        assert "train" in dataset.keys()
+        assert "test" in dataset.keys()
+
+    else:
+        raise AttributeError("You must provide either `--data_json` or `--load_data_from` argument.")
 
     rouge = load_metric("rouge")
 
@@ -265,8 +305,8 @@ def main():
     trainer = Seq2SeqTrainer(
         model=model,
         args=training_args,
-        train_dataset=train_data,
-        eval_dataset=eval_data,
+        train_dataset=dataset["train"],
+        eval_dataset=dataset["test"],
         compute_metrics=compute_metrics,
         tokenizer=tokenizer,
     )
@@ -315,7 +355,7 @@ def main():
         logger.info("*** Predict ***")
 
         output = trainer.predict(
-            test_dataset=eval_data,
+            test_dataset=dataset["test"],
             metric_key_prefix="test",
             max_length=data_args.val_max_target_length,
             num_beams=data_args.eval_beams or model.config.num_beams
