@@ -106,7 +106,7 @@ class DataTrainingArguments:
 
 
 def clean_html_tags(s: str) -> Dict[str, str]:
-    s = re.sub('</?[\w\W]+?>', ' TAG ', s)
+    s = re.sub('</?[\w\W]+?>', ' ', s)
     s = re.sub('\n|&nbsp;', ' ', s)
     s = re.sub('&[mn]?dash;', ' – ', s)
     s = re.sub('&lt;', '<', s)
@@ -142,8 +142,8 @@ def update_model_config(model: PreTrainedModel, tokenizer: PreTrainedTokenizer):
 
     # c.vocab_size = c.decoder.vocab_size
     c.num_beams = 4
-    c.max_length = 128
-    c.min_length = 32
+    c.max_length = 48
+    c.min_length = 4
     c.no_repeat_ngram_size = 3
     c.early_stopping = True
     c.length_penalty = 2.0
@@ -250,7 +250,7 @@ def main():
         }
 
     if os.path.isdir(model_name):
-        model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_name, cache_dir=cache_dir)
     else:
         model = EncoderDecoderModel.from_encoder_decoder_pretrained(
             model_name, model_name, cache_dir=cache_dir)
