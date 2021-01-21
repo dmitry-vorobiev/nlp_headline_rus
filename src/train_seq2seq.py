@@ -10,8 +10,9 @@ import transformers
 
 from dataclasses import dataclass, field
 from datasets import load_dataset, load_metric
-from transformers import AutoTokenizer, EncoderDecoderModel, EvalPrediction, HfArgumentParser, \
-    PreTrainedModel, PreTrainedTokenizer, Seq2SeqTrainer, Seq2SeqTrainingArguments, set_seed
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, EncoderDecoderModel, \
+    EvalPrediction, HfArgumentParser, PreTrainedModel, PreTrainedTokenizer, Seq2SeqTrainer, \
+    Seq2SeqTrainingArguments, set_seed
 from transformers.trainer_utils import EvaluationStrategy, is_main_process
 from transformers.training_args import ParallelMode
 from typing import Dict, Optional, Union
@@ -59,14 +60,14 @@ class DataTrainingArguments:
         },
     )
     max_target_length: Optional[int] = field(
-        default=64,
+        default=32,
         metadata={
             "help": "The maximum total sequence length for target text after tokenization. Sequences longer "
                     "than this will be truncated, sequences shorter will be padded."
         },
     )
     val_max_target_length: Optional[int] = field(
-        default=80,
+        default=48,
         metadata={
             "help": "The maximum total sequence length for validation target text after tokenization. Sequences longer "
                     "than this will be truncated, sequences shorter will be padded. "
@@ -248,9 +249,12 @@ def main():
             "rouge2_fmeasure": round(rouge_output.fmeasure, 4),
         }
 
-    model = EncoderDecoderModel.from_encoder_decoder_pretrained(
-        model_name, model_name, cache_dir=cache_dir)
-    update_model_config(model, tokenizer)
+    if os.path.isdir(model_name):
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+    else:
+        model = EncoderDecoderModel.from_encoder_decoder_pretrained(
+            model_name, model_name, cache_dir=cache_dir)
+        update_model_config(model, tokenizer)
 
     if model_args.freeze_embeds:
         freeze_embeds(model)
