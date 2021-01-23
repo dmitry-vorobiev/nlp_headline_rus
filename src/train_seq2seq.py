@@ -43,8 +43,12 @@ class ModelArguments:
         default=default_cache_dir,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
     )
-    freeze_encoder: bool = field(default=False, metadata={"help": "Whether tp freeze the encoder."})
+    freeze_encoder: bool = field(default=False, metadata={"help": "Whether to freeze the encoder."})
     freeze_embeds: bool = field(default=False, metadata={"help": "Whether  to freeze the embeddings."})
+    share_weights: bool = field(
+        default=False,
+        metadata={"help": "Whether to share weights between encoder/decoder parts of the model."}
+    )
 
 
 @dataclass
@@ -294,7 +298,10 @@ def main():
     else:
         model = EncoderDecoderModel.from_encoder_decoder_pretrained(
             model_name, model_name, cache_dir=cache_dir)
-        update_model_config(model, tokenizer)
+        if model_args.share_weights:
+            model.config.tie_word_embeddings = True
+            model.config.tie_encoder_decoder = True
+            model.tie_weights()
 
     if model_args.freeze_embeds:
         freeze_embeds(model)
