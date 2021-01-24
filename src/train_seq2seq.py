@@ -310,11 +310,6 @@ def main():
         freeze_params(model.get_encoder())
         assert_all_frozen(model.get_encoder())
 
-    if training_args.tpu_num_cores > 1:
-        import torch_xla.distributed.xla_multiprocessing as xmp
-        # let's hope it won't crash with OOM this way :)
-        model = xmp.MpModelWrapper(model)
-
     trainer = Seq2SeqTrainer(
         model=model,
         args=training_args,
