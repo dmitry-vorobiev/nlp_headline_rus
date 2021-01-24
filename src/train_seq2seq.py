@@ -302,6 +302,7 @@ def main():
             model.config.tie_word_embeddings = True
             model.config.tie_encoder_decoder = True
             model.tie_weights()
+        update_model_config(model, tokenizer)
 
     if model_args.freeze_embeds:
         freeze_embeds(model)
