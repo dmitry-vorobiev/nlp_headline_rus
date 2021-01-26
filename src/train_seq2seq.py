@@ -45,7 +45,7 @@ class ModelArguments:
     )
     freeze_encoder: bool = field(default=False, metadata={"help": "Whether to freeze the encoder."})
     freeze_embeds: bool = field(default=False, metadata={"help": "Whether  to freeze the embeddings."})
-    share_weights: bool = field(
+    tie_encoder_decoder: bool = field(
         default=False,
         metadata={"help": "Whether to share weights between encoder/decoder parts of the model."}
     )
@@ -213,6 +213,7 @@ def main():
 
     cache_dir = model_args.cache_dir
     model_name = model_args.model_name_or_path
+    output_dir = training_args.output_dir
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_name,
@@ -297,11 +298,10 @@ def main():
         model = AutoModelForSeq2SeqLM.from_pretrained(model_name, cache_dir=cache_dir)
     else:
         model = EncoderDecoderModel.from_encoder_decoder_pretrained(
-            model_name, model_name, cache_dir=cache_dir)
-        if model_args.share_weights:
-            model.config.tie_word_embeddings = True
-            model.config.tie_encoder_decoder = True
-            model.tie_weights()
+            encoder_pretrained_model_name_or_path=model_name,
+            decoder_pretrained_model_name_or_path=model_name,
+            tie_encoder_decoder=model_args.tie_encoder_decoder,
+            cache_dir=cache_dir)
         update_model_config(model, tokenizer)
 
     if model_args.freeze_embeds:
@@ -333,15 +333,15 @@ def main():
         trainer.save_model()  # this also saves the tokenizer
 
         if trainer.is_world_process_zero():
-            handle_metrics("train", metrics, training_args.output_dir)
+            handle_metrics("train", metrics, output_dir)
             all_metrics.update(metrics)
 
             # Need to save the state, since Trainer.save_model saves only the tokenizer with the model
-            trainer.state.save_to_json(os.path.join(training_args.output_dir, "trainer_state.json"))
+            trainer.state.save_to_json(os.path.join(output_dir, "trainer_state.json"))
 
             # For convenience, we also re-save the tokenizer to the same directory,
             # so that you can share your model easily on huggingface.co/models =)
-            tokenizer.save_pretrained(training_args.output_dir)
+            tokenizer.save_pretrained(output_dir)
 
     # Evaluation
     if training_args.do_eval:
@@ -356,7 +356,7 @@ def main():
         metrics["val_loss"] = round(metrics["val_loss"], 4)
 
         if trainer.is_world_process_zero():
-            handle_metrics("val", metrics, training_args.output_dir)
+            handle_metrics("val", metrics, output_dir)
             all_metrics.update(metrics)
 
     if training_args.do_predict:
@@ -373,7 +373,7 @@ def main():
 
         if trainer.is_world_process_zero():
             metrics["test_loss"] = round(metrics["test_loss"], 4)
-            handle_metrics("test", metrics, training_args.output_dir)
+            handle_metrics("test", metrics, output_dir)
             all_metrics.update(metrics)
 
             if training_args.predict_with_generate:
@@ -383,10 +383,10 @@ def main():
                     clean_up_tokenization_spaces=True
                 )
                 predictions = list(map(str.strip, predictions))
-                write_txt_file(predictions, os.path.join(training_args.output_dir, "test_generations.txt"))
+                write_txt_file(predictions, os.path.join(output_dir, "test_generations.txt"))
 
     if trainer.is_world_process_zero():
-        save_json(all_metrics, os.path.join(training_args.output_dir, "all_results.json"))
+        save_json(all_metrics, os.path.join(output_dir, "all_results.json"))
 
     return all_metrics
 
