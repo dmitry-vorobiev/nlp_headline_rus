@@ -10,9 +10,9 @@ import transformers
 
 from dataclasses import dataclass, field
 from datasets import load_dataset, load_from_disk, load_metric
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, EncoderDecoderModel, \
-    EvalPrediction, HfArgumentParser, PreTrainedModel, PreTrainedTokenizer, Seq2SeqTrainer, \
-    Seq2SeqTrainingArguments, set_seed
+from transformers import AutoConfig, AutoTokenizer, AutoModelForSeq2SeqLM, EncoderDecoderConfig, \
+    EncoderDecoderModel, EvalPrediction, HfArgumentParser, PreTrainedModel, PreTrainedTokenizer, \
+    Seq2SeqTrainer, Seq2SeqTrainingArguments, set_seed
 from transformers.trainer_utils import is_main_process
 from transformers.training_args import ParallelMode
 from typing import Dict, Optional
@@ -212,11 +212,11 @@ def main():
     set_seed(training_args.seed)
 
     cache_dir = model_args.cache_dir
-    model_name = model_args.model_name_or_path
+    model_name_or_path = model_args.model_name_or_path
     output_dir = training_args.output_dir
 
     tokenizer = AutoTokenizer.from_pretrained(
-        model_args.tokenizer_name if model_args.tokenizer_name else model_name,
+        model_args.tokenizer_name if model_args.tokenizer_name else model_name_or_path,
         cache_dir=cache_dir,
     )
     tokenizer.bos_token = tokenizer.cls_token
@@ -294,12 +294,17 @@ def main():
             "rouge2_fmeasure": round(rouge_output.fmeasure, 4),
         }
 
-    if os.path.isdir(model_name):
-        model = AutoModelForSeq2SeqLM.from_pretrained(model_name, cache_dir=cache_dir)
+    config = AutoConfig.from_pretrained(
+        model_args.config_name if model_args.config_name else model_name_or_path,
+        cache_dir=cache_dir,
+    )
+
+    if isinstance(config, EncoderDecoderConfig):
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_name_or_path, cache_dir=cache_dir)
     else:
         model = EncoderDecoderModel.from_encoder_decoder_pretrained(
-            encoder_pretrained_model_name_or_path=model_name,
-            decoder_pretrained_model_name_or_path=model_name,
+            encoder_pretrained_model_name_or_path=model_name_or_path,
+            decoder_pretrained_model_name_or_path=model_name_or_path,
             tie_encoder_decoder=model_args.tie_encoder_decoder,
             cache_dir=cache_dir)
         update_model_config(model, tokenizer)
@@ -325,7 +330,7 @@ def main():
         logger.info("*** Train ***")
 
         train_result = trainer.train(
-            model_path=model_name if os.path.isdir(model_name) else None
+            model_path=model_name_or_path if os.path.isdir(model_name_or_path) else None
         )
         metrics = train_result.metrics
         metrics["train_n_objs"] = data_args.n_train
