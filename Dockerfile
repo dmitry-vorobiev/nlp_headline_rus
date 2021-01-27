@@ -11,6 +11,8 @@ WORKDIR /app
 ENV LANG C.UTF-8
 
 RUN apt-get update && apt-get install -y \
+    git \
+    wget
     python3 \
     python3-pip
 
@@ -26,3 +28,8 @@ RUN ln -s /usr/bin/python3 /usr/bin/python
 COPY . /app/
 
 RUN python3 -m pip install -r /app/requirements.txt
+
+RUN cd /io && \
+    git clone https://github.com/RossiyaSegodnya/ria_news_dataset && \
+    cd ria_news_dataset && \
+    wget -N https://github.com/RossiyaSegodnya/ria_news_dataset/raw/master/ria.json.gz
