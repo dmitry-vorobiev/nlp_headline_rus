@@ -12,9 +12,14 @@ ENV LANG C.UTF-8
 
 RUN apt-get update && apt-get install -y \
     git \
-    wget
+    curl \
     python3 \
     python3-pip
+
+# Install latest Git LFS:
+# https://github.com/git-lfs/git-lfs/wiki/Installation
+RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash
+RUN apt-get update && apt-get install -y git-lfs
 
 RUN python3 -m pip --no-cache-dir install --upgrade \
     pip \
@@ -32,4 +37,11 @@ RUN python3 -m pip install -r /app/requirements.txt
 RUN cd /io && \
     git clone https://github.com/RossiyaSegodnya/ria_news_dataset && \
     cd ria_news_dataset && \
-    wget -N https://github.com/RossiyaSegodnya/ria_news_dataset/raw/master/ria.json.gz
+    git lfs install && \
+    git lfs pull
+
+RUN cd /io && \
+    git clone https://huggingface.co/dmitry-vorobiev/rubert_ria_headlines && \
+    cd rubert_ria_headlines && \
+    git lfs install && \
+    git lfs pull
