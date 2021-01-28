@@ -1,7 +1,16 @@
 # nlp_headline_rus
-News headline (title) generation using neural nets, trained on RIA dataset (russian lang)
+News headline generation using neural nets, trained on ["Rossiya Segodnya" news dataset](https://github.com/RossiyaSegodnya/ria_news_dataset).
+
+## Task evaluation
+Using last 10% of the ["Rossiya Segodnya" news dataset](https://github.com/RossiyaSegodnya/ria_news_dataset) for now. May switch to another dataset later.
 
 ## Installation
+
+### PyPI
+
+```shell
+pip install -r requirements.txt
+```
 
 ### Docker
 
@@ -13,14 +22,18 @@ docker build . --tag headlines:latest
 
 ### Docker
 
+Build docker image:
+
 ```shell
 docker run -it --name headlines_gpu --gpus all headlines:latest
 ```
 
-inside docker:
+Run evaluation script inside docker container:
 ```shell
 sh /app/scripts/eval_docker.sh
 ```
+
+By default, results can be found at `/io/output`.
 
 ## Pretrained weights
 
