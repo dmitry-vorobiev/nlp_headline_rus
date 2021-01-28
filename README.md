@@ -25,5 +25,5 @@ sh /app/scripts/eval_docker.sh
 ## Pretrained weights
 
 1. [URL](https://huggingface.co/dmitry-vorobiev/rubert_ria_headlines/tree/e0a2e3bf4a4c9069bb6cdf48ef7cc7f3301de4c6) | 
-    bert2bert, initialized from `DeepPavlov/rubert-base-cased` and 
-   fine-tuned on first 90% of [ria-new dataset](https://github.com/RossiyaSegodnya/ria_news_dataset) for 1.6 epochs.
+   2021-01-28 | bert2bert, initialized with the `DeepPavlov/rubert-base-cased` pretrained weights and 
+   fine-tuned on the first 90% of ["Rossiya Segodnya" news dataset](https://github.com/RossiyaSegodnya/ria_news_dataset) for 1.6 epochs.
