@@ -20,6 +20,39 @@ docker build . --tag headlines:latest
 
 ## Usage
 
+### In code
+
+```python
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+
+MODEL_NAME = "dmitry-vorobiev/rubert_ria_headlines"
+
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
+
+text = "Скопируйте текст статьи / новости"
+
+encoded_batch = tokenizer.prepare_seq2seq_batch(
+    [text],
+    return_tensors="pt",
+    padding="max_length",
+    truncation=True,
+    max_length=512)
+
+output_ids = model.generate(
+    input_ids=encoded_batch["input_ids"],
+    max_length=32,
+    no_repeat_ngram_size=3,
+    num_beams=5,
+    top_k=0
+)
+
+headline = tokenizer.decode(output_ids[0], 
+                            skip_special_tokens=True, 
+                            clean_up_tokenization_spaces=False)
+print(headline)
+```
+
 ### Docker
 
 Build docker image:
