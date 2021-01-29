@@ -8,11 +8,15 @@ Using last 10% of the ["Rossiya Segodnya" news dataset](https://github.com/Rossi
 
 ### PyPI
 
+You may want to create a virtual environment first
+
 ```shell
 pip install -r requirements.txt
 ```
 
 ### Docker
+
+Build docker image
 
 ```shell
 docker build . --tag headlines:latest
@@ -55,13 +59,13 @@ print(headline)
 
 ### Docker
 
-Build docker image:
+Run docker container interactive session:
 
 ```shell
 docker run -it --name headlines_gpu --gpus all headlines:latest
 ```
 
-Run evaluation script inside docker container:
+Execute evaluation script:
 ```shell
 sh /app/scripts/eval_docker.sh
 ```
