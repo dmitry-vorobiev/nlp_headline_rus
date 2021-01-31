@@ -9,7 +9,8 @@ import re
 import transformers
 
 from dataclasses import dataclass, field
-from datasets import load_dataset, load_from_disk, load_metric
+from datasets import load_dataset, load_from_disk
+from rouge import Rouge
 from transformers import AutoConfig, AutoTokenizer, AutoModelForSeq2SeqLM, EncoderDecoderConfig, \
     EncoderDecoderModel, EvalPrediction, HfArgumentParser, PreTrainedModel, PreTrainedTokenizer, \
     Seq2SeqTrainer, Seq2SeqTrainingArguments, set_seed
@@ -274,7 +275,7 @@ def main():
     else:
         raise AttributeError("You must provide either `--data_json` or `--load_data_from` argument.")
 
-    rouge = load_metric("rouge")
+    rouge = Rouge()
 
     def compute_metrics(output: EvalPrediction):
         labels_ids = output.label_ids
@@ -284,15 +285,17 @@ def main():
         labels_ids[labels_ids == PAD_LABEL] = tokenizer.pad_token_id
         label_str = tokenizer.batch_decode(labels_ids, skip_special_tokens=True)
 
-        rouge_output = rouge.compute(
-            predictions=predicted_str, references=label_str, rouge_types=["rouge2"]
-        )["rouge2"].mid
+        rouge_scores = rouge.get_scores(predicted_str, label_str, avg=True, ignore_empty=True)
+        # {'rouge-1': {'f': 0.383, 'p': 0.371, 'r': 0.403}, 'rouge-2': {...}, 'rouge-l': {...}}
 
-        return {
-            "rouge2_precision": round(rouge_output.precision, 4),
-            "rouge2_recall": round(rouge_output.recall, 4),
-            "rouge2_fmeasure": round(rouge_output.fmeasure, 4),
-        }
+        metrics_out = dict()
+
+        for rouge_type, rouge_metrics in rouge_scores.items():
+            for name, value in rouge_metrics.items():
+                complete_name = f"{rouge_type}_{name}"
+                metrics_out[complete_name] = round(value, 5)
+
+        return metrics_out
 
     config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_name_or_path,

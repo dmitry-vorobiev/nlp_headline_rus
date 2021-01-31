@@ -1,6 +1,6 @@
 dataclasses
 datasets>=1.2.0
 numpy
-rouge_score
+rouge>=1.0.0
 torch
 transformers>=4.2.1
