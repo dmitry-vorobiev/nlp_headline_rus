@@ -74,6 +74,15 @@ By default, results can be found at `/io/output`.
 
 ## Pretrained weights
 
-1. [URL](https://huggingface.co/dmitry-vorobiev/rubert_ria_headlines/tree/e0a2e3bf4a4c9069bb6cdf48ef7cc7f3301de4c6) | 
-   2021-01-28 | bert2bert, initialized with the `DeepPavlov/rubert-base-cased` pretrained weights and 
+- 2021-01-31 | [huggingface](https://huggingface.co/dmitry-vorobiev/rubert_ria_headlines/tree/5b67024544fb68a42afe954be12925f9c23fe50a) | 
+   [kaggle](https://www.kaggle.com/dvorobiev/bert2bert-weights) | same as previous, but trained on TPUv3 with higher batch size (256 vs 56).
+
+- 2021-01-28 | [huggingface](https://huggingface.co/dmitry-vorobiev/rubert_ria_headlines/tree/e0a2e3bf4a4c9069bb6cdf48ef7cc7f3301de4c6) | 
+   bert2bert, initialized with the `DeepPavlov/rubert-base-cased` pretrained weights and 
    fine-tuned on the first 90% of ["Rossiya Segodnya" news dataset](https://github.com/RossiyaSegodnya/ria_news_dataset) for 1.6 epochs.
+
+## Useful links
+
+- [Train on kaggle's TPUv8](https://www.kaggle.com/dvorobiev/try-train-seq2seq-ria-tpu)
+
+- [How to apply popular metrics to generated russian text](https://www.kaggle.com/phoenix120/baseline-summarization)
