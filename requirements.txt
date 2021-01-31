@@ -1,6 +1,7 @@
 dataclasses
 datasets>=1.2.0
 numpy
+nltk>=3.5
 rouge>=1.0.0
 torch
 transformers>=4.2.1
