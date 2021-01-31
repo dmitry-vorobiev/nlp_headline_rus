@@ -1,14 +1,14 @@
 #!/bin/bash
 
 BASE_DIR=$HOME/projects/2gis_sum
-DATA_DIR=$BASE_DIR/ria_news_dataset
+# DATA_DIR=$BASE_DIR/ria_news_dataset
 WEIGHTS_DIR=$BASE_DIR/rubert-base-cased
 PREP_DATA_DIR=/media/dmitry/data/outputs/headlines/ria_1k
 CACHE_DIR=/media/dmitry/data/huggingface/cache
 OUT_DIR=/media/dmitry/data/outputs/headlines/default
-SRC_DIR=`dirname "$0"`/../src
+SRC_DIR=$(dirname "$0")/../src
 
-python $SRC_DIR/train_seq2seq.py \
+python "$SRC_DIR/train_seq2seq.py" \
     --do_train \
     --fp16 \
     --predict_with_generate \
@@ -25,4 +25,4 @@ python $SRC_DIR/train_seq2seq.py \
     --output_dir $OUT_DIR \
     --cache_dir $CACHE_DIR \
     --load_data_from $PREP_DATA_DIR \
-    --model_name_or_path $WEIGHTS_DIR
+    --model_name_or_path "$WEIGHTS_DIR"

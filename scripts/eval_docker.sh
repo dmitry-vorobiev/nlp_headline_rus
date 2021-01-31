@@ -3,9 +3,9 @@
 DATA_DIR=/io/ria_news_dataset
 WEIGHTS_DIR=/io/rubert_ria_headlines
 OUT_DIR=/io/output
-SRC_DIR=`dirname "$0"`/../src
+SRC_DIR=$(dirname "$0")/../src
 
-python $SRC_DIR/train_seq2seq.py \
+python "$SRC_DIR/train_seq2seq.py" \
     --do_predict \
     --eval_beams 5 \
     --predict_with_generate \
@@ -19,4 +19,4 @@ python $SRC_DIR/train_seq2seq.py \
     --eval_split 0.1 \
     --output_dir $OUT_DIR \
     --data_json $DATA_DIR/ria.json.gz \
-    --model_name_or_path $WEIGHTS_DIR
+    --model_name_or_path "$WEIGHTS_DIR"

@@ -1,10 +1,13 @@
 #!/bin/bash
 
-DATA_DIR=$HOME/projects/2gis_sum/ria_news_dataset
+# DATA_DIR=$HOME/projects/2gis_sum/ria_news_dataset
+WEIGHTS_DIR=/media/dmitry/other/resave_tpu_weights_v18_3ep
+PREP_DATA_DIR=/media/dmitry/data/outputs/headlines/ria_1k
+CACHE_DIR=/media/dmitry/data/huggingface/cache
 OUT_DIR=/media/dmitry/data/outputs/headlines/default
-SRC_DIR=`dirname "$0"`/../src
+SRC_DIR=$(dirname "$0")/../src
 
-python $SRC_DIR/train_seq2seq.py \
+python "$SRC_DIR/train_seq2seq.py" \
     --do_predict \
     --eval_beams 5 \
     --predict_with_generate \
@@ -13,6 +16,6 @@ python $SRC_DIR/train_seq2seq.py \
     --per_device_eval_batch_size 8 \
     --eval_accumulation_steps 3 \
     --output_dir $OUT_DIR \
-    --cache_dir /media/dmitry/data/huggingface/cache \
-    --load_data_from /media/dmitry/data/outputs/headlines/ria_1k \
-    --model_name_or_path /media/dmitry/data/outputs/headlines/2021-01-27_1.6_ep_gpu
+    --cache_dir $CACHE_DIR \
+    --load_data_from $PREP_DATA_DIR \
+    --model_name_or_path "$WEIGHTS_DIR"
