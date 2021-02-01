@@ -75,7 +75,7 @@ By default, results can be found at `/io/output`.
 ## Pretrained weights
 
 - 2021-01-31 | [huggingface](https://huggingface.co/dmitry-vorobiev/rubert_ria_headlines/tree/5b67024544fb68a42afe954be12925f9c23fe50a) | 
-   [kaggle](https://www.kaggle.com/dvorobiev/bert2bert-weights) | same as previous, but trained on TPUv3 with higher batch size (256 vs 56).
+   [kaggle](https://www.kaggle.com/dvorobiev/bert2bert-weights) | same as previous, but trained on TPUv3 with higher batch size (256 vs 56). | Evaluation results: [last 1% of ria](https://drive.google.com/drive/folders/1QNC9wPfbDB9HaTFC2YtBMSE7FXjT0zq_?usp=sharing)
 
 - 2021-01-28 | [huggingface](https://huggingface.co/dmitry-vorobiev/rubert_ria_headlines/tree/e0a2e3bf4a4c9069bb6cdf48ef7cc7f3301de4c6) | 
    bert2bert, initialized with the `DeepPavlov/rubert-base-cased` pretrained weights and 
