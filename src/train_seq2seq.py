@@ -98,6 +98,9 @@ def main():
     cache_dir = model_args.cache_dir
     model_name_or_path = model_args.model_name_or_path
     output_dir = training_args.output_dir
+    do_train = training_args.do_train
+    do_eval = training_args.do_eval
+    do_predict = training_args.do_predict
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_name_or_path,
@@ -106,7 +109,10 @@ def main():
     tokenizer.bos_token = tokenizer.cls_token
     tokenizer.eos_token = tokenizer.sep_token
 
-    dataset = build_datasets(data_args, tokenizer, cache_dir=cache_dir)
+    train_dataset, eval_dataset = build_datasets(data_args, tokenizer,
+                                                 cache_dir=cache_dir,
+                                                 skip_train=not do_train,
+                                                 skip_eval=not (do_eval or do_predict))
 
     config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_name_or_path,
@@ -132,15 +138,15 @@ def main():
     trainer = Seq2SeqTrainer(
         model=model,
         args=training_args,
-        train_dataset=dataset["train"],
-        eval_dataset=dataset["test"],
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         compute_metrics=build_calc_metrics_fn(tokenizer),
         tokenizer=tokenizer,
     )
     all_metrics = dict()
 
     # Training
-    if training_args.do_train:
+    if do_train:
         logger.info("*** Train ***")
 
         train_result = trainer.train(
@@ -163,7 +169,7 @@ def main():
             tokenizer.save_pretrained(output_dir)
 
     # Evaluation
-    if training_args.do_eval:
+    if do_eval:
         logger.info("*** Evaluate ***")
 
         metrics = trainer.evaluate(
@@ -178,11 +184,11 @@ def main():
             handle_metrics("val", metrics, output_dir)
             all_metrics.update(metrics)
 
-    if training_args.do_predict:
+    if do_predict:
         logger.info("*** Predict ***")
 
         output = trainer.predict(
-            test_dataset=dataset["test"],
+            test_dataset=eval_dataset,
             metric_key_prefix="test",
             max_length=data_args.val_max_target_length,
             num_beams=data_args.eval_beams or model.config.num_beams
