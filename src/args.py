@@ -56,7 +56,7 @@ class DataTrainingArguments:
         },
     )
     max_target_length: Optional[int] = field(
-        default=32,
+        default=48,
         metadata={
             "help": "The maximum total sequence length for target text after tokenization. Sequences longer "
                     "than this will be truncated, sequences shorter will be padded."
@@ -98,6 +98,11 @@ class DataTrainingArguments:
     eval_beams: Optional[int] = field(
         default=3,
         metadata={"help": "# num_beams to use for evaluation."}
+    )
+    add_line_breaks: bool = field(
+        default=True,
+        metadata={
+            "help": "Use special token to identify line breaks in news text"},
     )
     # TODO: do we use it?
     ignore_pad_token_for_loss: bool = field(

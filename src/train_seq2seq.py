@@ -140,8 +140,7 @@ def main():
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        compute_metrics=build_calc_metrics_fn(tokenizer),
-        tokenizer=tokenizer,
+        compute_metrics=build_calc_metrics_fn(tokenizer) if do_eval or do_predict else None,
     )
     all_metrics = dict()
 

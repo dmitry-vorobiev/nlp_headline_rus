@@ -2,11 +2,15 @@ import logging
 import os
 import re
 from datasets import Dataset, DatasetDict, load_dataset, load_from_disk
-from transformers import PreTrainedTokenizer
+from functools import partial
+from transformers import PreTrainedTokenizer, AddedToken
 from typing import Dict, Tuple
 
 from args import DataTrainingArguments
 from train_utils import create_preprocess_fn
+
+BREAK_TOKEN_STRIPPED = 'BRK'
+BREAK_TOKEN = f'[{BREAK_TOKEN_STRIPPED}]'
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +43,13 @@ def build_datasets(
         if skip_eval and "test" in dataset:
             del dataset["test"]
 
-        dataset = dataset.map(clean_html_tags, input_columns='text')
+        add_line_breaks = data_args.add_line_breaks
+        normalize = partial(normalize_text, add_line_breaks=add_line_breaks)
+        dataset = dataset.map(normalize, input_columns='text')
+
+        if add_line_breaks:
+            tokenizer.add_special_tokens(dict(additional_special_tokens=[BREAK_TOKEN]))
+
         proc_kwargs = dict(
             batched=True,
             batch_size=data_args.tokenizer_batch_size,
@@ -84,15 +94,21 @@ def build_datasets(
     return train_data, eval_data
 
 
-def clean_html_tags(s: str) -> Dict[str, str]:
+def normalize_text(s: str, add_line_breaks=False) -> Dict[str, str]:
+    if add_line_breaks:
+        # </p> <p> | <br> | \n
+        s = re.sub('</p>(\W)?(<p>)?|<br\s*?/?>|\n', BREAK_TOKEN, s)
     s = re.sub('</?[\w\W]+?>', ' ', s)
     s = re.sub('\n|&nbsp;', ' ', s)
-    s = re.sub('&[mn]?dash;', ' – ', s)
+    s = re.sub('&(m|n)?dash;', ' – ', s)
     s = re.sub('&lt;', '<', s)
     s = re.sub('&gt;', '>', s)
-    # s = re.sub(r"\'", "'", s)
     s = re.sub('&rsquo;', '’', s)
     s = re.sub('&hellip;', '…', s)
     s = re.sub('&amp;', '&', s)
-    s = re.sub('\s\s+', ' ', s)
-    return dict(text=s)
+    if add_line_breaks:
+        # remove repeating tokens
+        s = re.sub('(\[' + BREAK_TOKEN_STRIPPED + ']\s*){2,}', BREAK_TOKEN, s)
+        s = s.strip().strip(BREAK_TOKEN)
+    s = re.sub('\s{2,}', ' ', s)
+    return dict(text=s.strip())
