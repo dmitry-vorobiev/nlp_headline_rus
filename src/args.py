@@ -100,7 +100,7 @@ class DataTrainingArguments:
         metadata={"help": "# num_beams to use for evaluation."}
     )
     add_line_breaks: bool = field(
-        default=True,
+        default=False,
         metadata={
             "help": "Use special token to identify line breaks in news text"},
     )

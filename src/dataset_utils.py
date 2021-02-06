@@ -33,16 +33,18 @@ def build_datasets(
     if json_path is not None:
         logger.info("Preprocessing new dataset from {}".format(json_path))
         eval_split = data_args.eval_split
+        save_dir = data_args.save_data_to
 
         dataset = load_dataset('json', data_files=[json_path], cache_dir=cache_dir)
         if eval_split < 1:
             dataset = dataset["train"].train_test_split(test_size=eval_split, shuffle=False)
 
-        # Spend less time on preprocessing
-        if skip_train:
-            del dataset["train"]
-        if skip_eval and "test" in dataset:
-            del dataset["test"]
+        if save_dir is None:
+            # Spend less time on preprocessing
+            if skip_train:
+                del dataset["train"]
+            if skip_eval and "test" in dataset:
+                del dataset["test"]
 
         normalize = partial(normalize_text, add_line_breaks=add_line_breaks)
         dataset = dataset.map(normalize, input_columns='text')
