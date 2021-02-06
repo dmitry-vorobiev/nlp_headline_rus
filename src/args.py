@@ -99,10 +99,16 @@ class DataTrainingArguments:
         default=3,
         metadata={"help": "# num_beams to use for evaluation."}
     )
-    add_line_breaks: bool = field(
+    add_line_breaks: Optional[bool] = field(
         default=False,
         metadata={
             "help": "Use special token to identify line breaks in news text"},
+    )
+    line_break_token: Optional[str] = field(
+        default="[unused3]",
+        metadata={
+            "help": "String representation of line break token"
+        }
     )
     # TODO: do we use it?
     ignore_pad_token_for_loss: bool = field(

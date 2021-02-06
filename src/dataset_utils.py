@@ -9,8 +9,6 @@ from typing import Dict, Tuple
 from args import DataTrainingArguments
 from train_utils import create_preprocess_fn
 
-BREAK_TOKEN_STRIPPED = 'BRK'
-BREAK_TOKEN = f'[{BREAK_TOKEN_STRIPPED}]'
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +25,12 @@ def build_datasets(
     json_path = data_args.data_json
     data_dir = data_args.load_data_from
     add_line_breaks = data_args.add_line_breaks
+    break_token = data_args.line_break_token
     train_data, eval_data = None, None
     dataset = DatasetDict()
+
+    if add_line_breaks:
+        tokenizer.add_special_tokens(dict(additional_special_tokens=[break_token]))
 
     if json_path is not None:
         logger.info("Preprocessing new dataset from {}".format(json_path))
@@ -46,7 +48,7 @@ def build_datasets(
             if skip_eval and "test" in dataset:
                 del dataset["test"]
 
-        normalize = partial(normalize_text, add_line_breaks=add_line_breaks)
+        normalize = partial(normalize_text, add_line_breaks=add_line_breaks, brk=break_token)
         dataset = dataset.map(normalize, input_columns='text')
 
         proc_kwargs = dict(
@@ -86,9 +88,6 @@ def build_datasets(
     else:
         raise AttributeError("You must provide either `--data_json` or `--load_data_from` argument.")
 
-    if add_line_breaks:
-        tokenizer.add_special_tokens(dict(additional_special_tokens=[BREAK_TOKEN]))
-
     if "train" in dataset:
         train_data = dataset["train"]
     if "test" in dataset:
@@ -96,10 +95,10 @@ def build_datasets(
     return train_data, eval_data
 
 
-def normalize_text(s: str, add_line_breaks=False) -> Dict[str, str]:
+def normalize_text(s: str, add_line_breaks=False, brk="[BRK]") -> Dict[str, str]:
     if add_line_breaks:
         # </p> <p> | <br> | \n
-        s = re.sub('</p>(\W)?(<p>)?|<br\s*?/?>|\n', BREAK_TOKEN, s)
+        s = re.sub('</p>(\W)?(<p>)?|<br\s*?/?>|\n', brk, s)
     s = re.sub('</?[\w\W]+?>', ' ', s)
     s = re.sub('\n|&nbsp;', ' ', s)
     s = re.sub('&(m|n)?dash;', ' – ', s)
@@ -110,7 +109,7 @@ def normalize_text(s: str, add_line_breaks=False) -> Dict[str, str]:
     s = re.sub('&amp;', '&', s)
     if add_line_breaks:
         # remove repeating tokens
-        s = re.sub('(\[' + BREAK_TOKEN_STRIPPED + ']\s*){2,}', BREAK_TOKEN, s)
-        s = s.strip().strip(BREAK_TOKEN)
+        s = re.sub('(\[' + brk[1:-1] + ']\s*){2,}', brk, s)
+        s = s.strip().strip(brk)
     s = re.sub('\s{2,}', ' ', s)
     return dict(text=s.strip())
