@@ -26,6 +26,7 @@ def build_datasets(
 
     json_path = data_args.data_json
     data_dir = data_args.load_data_from
+    add_line_breaks = data_args.add_line_breaks
     train_data, eval_data = None, None
     dataset = DatasetDict()
 
@@ -43,12 +44,8 @@ def build_datasets(
         if skip_eval and "test" in dataset:
             del dataset["test"]
 
-        add_line_breaks = data_args.add_line_breaks
         normalize = partial(normalize_text, add_line_breaks=add_line_breaks)
         dataset = dataset.map(normalize, input_columns='text')
-
-        if add_line_breaks:
-            tokenizer.add_special_tokens(dict(additional_special_tokens=[BREAK_TOKEN]))
 
         proc_kwargs = dict(
             batched=True,
@@ -86,6 +83,9 @@ def build_datasets(
             dataset = load_from_disk(data_dir)
     else:
         raise AttributeError("You must provide either `--data_json` or `--load_data_from` argument.")
+
+    if add_line_breaks:
+        tokenizer.add_special_tokens(dict(additional_special_tokens=[BREAK_TOKEN]))
 
     if "train" in dataset:
         train_data = dataset["train"]
