@@ -105,7 +105,7 @@ class DataTrainingArguments:
             "help": "Use special token to identify line breaks in news text"},
     )
     line_break_token: Optional[str] = field(
-        default="[unused3]",
+        default="[unused99]",
         metadata={
             "help": "String representation of line break token"
         }
