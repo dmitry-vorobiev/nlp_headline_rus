@@ -2,9 +2,8 @@ import logging
 import os
 import re
 from datasets import Dataset, DatasetDict, load_dataset, load_from_disk
-from functools import partial
-from transformers import PreTrainedTokenizer, AddedToken
-from typing import Dict, Tuple
+from transformers import PreTrainedTokenizer
+from typing import Dict, List, Tuple
 
 from args import DataTrainingArguments
 from train_utils import create_preprocess_fn
@@ -48,8 +47,15 @@ def build_datasets(
             if skip_eval and "test" in dataset:
                 del dataset["test"]
 
-        normalize = partial(normalize_text, add_line_breaks=add_line_breaks, brk=break_token)
-        dataset = dataset.map(normalize, input_columns='text')
+        def normalize(batch: Dict[str, List[str]]) -> Dict[str, List[str]]:
+            batch['text'] = (
+                [normalize_text(txt, add_line_breaks=False) for txt in batch['text']] +
+                [normalize_text(txt, add_line_breaks=True, brk=break_token) for txt in batch['text']]
+            )
+            batch['title'] += batch['title']
+            return batch
+
+        dataset = dataset.map(normalize, batched=True, batch_size=16)
 
         proc_kwargs = dict(
             batched=True,
@@ -95,7 +101,7 @@ def build_datasets(
     return train_data, eval_data
 
 
-def normalize_text(s: str, add_line_breaks=False, brk="[BRK]") -> Dict[str, str]:
+def normalize_text(s: str, add_line_breaks=False, brk="[BRK]") -> str:
     if add_line_breaks:
         # </p> <p> | <br> | \n
         s = re.sub('</p>(\W)?(<p>)?|<br\s*?/?>|\n', brk, s)
@@ -112,4 +118,4 @@ def normalize_text(s: str, add_line_breaks=False, brk="[BRK]") -> Dict[str, str]
         s = re.sub('(\[' + brk[1:-1] + ']\s*){2,}', brk, s)
         s = s.strip().strip(brk)
     s = re.sub('\s{2,}', ' ', s)
-    return dict(text=s.strip())
+    return s.strip()
