@@ -47,8 +47,9 @@ def build_datasets(
             if skip_eval and "test" in dataset:
                 del dataset["test"]
 
-        normalize = partial(normalize_text, add_line_breaks=add_line_breaks, brk=break_token)
-        dataset = dataset.map(normalize, input_columns='text')
+        if not data_args.skip_text_clean:
+            normalize = partial(normalize_text, add_line_breaks=add_line_breaks, brk=break_token)
+            dataset = dataset.map(normalize, input_columns='text')
 
         proc_kwargs = dict(
             batched=True,
@@ -121,7 +122,7 @@ def deduce_dataset_args(data_path: str) -> Dict[str, Any]:
         _, ext = os.path.splitext(data_path)
         out = dict(data_files=[data_path])
 
-        if ext.endswith("json"):
+        if ext.lower() in [".json", ".jsonl"]:
             out["path"] = "json"
         elif ext.endswith("txt"):
             out["path"] = "text"

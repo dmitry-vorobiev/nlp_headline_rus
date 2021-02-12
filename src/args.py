@@ -116,6 +116,12 @@ class DataTrainingArguments:
         metadata={
             "help": "If only pad tokens should be ignored. This assumes that `config.pad_token_id` is defined."},
     )
+    skip_text_clean: bool = field(
+        default=False,
+        metadata={
+            "help": "Skip HTML tags cleaning | text normalization step"
+        }
+    )
 
 
 @dataclass
