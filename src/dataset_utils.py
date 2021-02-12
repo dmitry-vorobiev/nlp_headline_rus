@@ -3,13 +3,12 @@ import os
 import re
 from datasets import Dataset, DatasetDict, load_dataset, load_from_disk
 from functools import partial
-from transformers import PreTrainedTokenizer, AddedToken
-from typing import Dict, Tuple
+from transformers import PreTrainedTokenizer
+from typing import Any, Dict, Tuple
 
 from args import DataTrainingArguments
-from train_utils import create_preprocess_fn
 
-
+PAD_LABEL = -100
 logger = logging.getLogger(__name__)
 
 
@@ -101,7 +100,7 @@ def normalize_text(s: str, add_line_breaks=False, brk="[BRK]") -> Dict[str, str]
         s = re.sub('</p>(\W)?(<p>)?|<br\s*?/?>|\n', brk, s)
     s = re.sub('</?[\w\W]+?>', ' ', s)
     s = re.sub('\n|&nbsp;', ' ', s)
-    s = re.sub('&(m|n)?dash;', ' – ', s)
+    s = re.sub('&[mn]?dash;', ' – ', s)
     s = re.sub('&lt;', '<', s)
     s = re.sub('&gt;', '>', s)
     s = re.sub('&rsquo;', '’', s)
@@ -113,3 +112,59 @@ def normalize_text(s: str, add_line_breaks=False, brk="[BRK]") -> Dict[str, str]
         s = s.strip().strip(brk)
     s = re.sub('\s{2,}', ' ', s)
     return dict(text=s.strip())
+
+
+def deduce_dataset_args(data_path: str) -> Dict[str, Any]:
+    out = dict(path=data_path)
+
+    if os.path.exists(data_path) and os.path.isfile(data_path):
+        _, ext = os.path.splitext(data_path)
+        out = dict(data_files=[data_path])
+
+        if ext.endswith("json"):
+            out["path"] = "json"
+        elif ext.endswith("txt"):
+            out["path"] = "text"
+        else:
+            raise ValueError("Unregistered file extension: {}".format(ext))
+
+    return out
+
+
+def create_preprocess_fn(tokenizer: PreTrainedTokenizer,
+                         max_input_len=512,
+                         max_output_len=128):
+    """
+    Mostly copied from:
+    https://github.com/patrickvonplaten/notebooks/blob/master/BERT2BERT_for_CNN_Dailymail.ipynb
+    """
+    def _preprocess_fn(batch: Dict[str, Any]):
+        inputs = tokenizer(
+            text=batch["text"],
+            padding="max_length",
+            truncation=True,
+            max_length=max_input_len,
+        )
+
+        outputs = tokenizer(
+            text=batch["title"],
+            padding="max_length",
+            truncation=True,
+            max_length=max_output_len,
+        )
+
+        batch["input_ids"] = inputs.input_ids
+        batch["attention_mask"] = inputs.attention_mask
+        batch["decoder_input_ids"] = outputs.input_ids
+        batch["decoder_attention_mask"] = outputs.attention_mask
+        batch["labels"] = outputs.input_ids.copy()
+
+        # because BERT automatically shifts the labels, the labels correspond exactly to `decoder_input_ids`.
+        # We have to make sure that the PAD token is ignored
+        pad_token = tokenizer.pad_token_id
+        batch["labels"] = [[PAD_LABEL if token == pad_token else token for token in labels]
+                           for labels in batch["labels"]]
+
+        return batch
+
+    return _preprocess_fn

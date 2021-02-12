@@ -116,3 +116,40 @@ class DataTrainingArguments:
         metadata={
             "help": "If only pad tokens should be ignored. This assumes that `config.pad_token_id` is defined."},
     )
+
+
+@dataclass
+class EvaluationArguments:
+    test_data: str = field(
+        metadata={"help": "Test dataset or path to file, containing references"}
+    )
+    predictions: str = field(
+        metadata={"help": "Path to generated predictions .txt file"}
+    )
+    ref_col: Optional[str] = field(
+        default="title",
+        metadata={"help": "If the test dataset has multiple columns, which column to use"}
+    )
+    cache_dir: Optional[str] = field(
+        default=default_cache_dir,
+        metadata={"help": "Where to store processed data | downloaded model weights"},
+    )
+    output_dir: str = field(
+        default="./eval_score",
+        metadata={"help": "A directory to store evaluation results"}
+    )
+    test_size: Optional[float] = field(
+        default=1.0,
+        metadata={
+            "help": "Fraction of dataset to use for evaluation."
+        }
+    )
+    batch_size: int = field(
+        default=64, metadata={"help": "Batch size per GPU"}
+    )
+    num_workers: int = field(
+        default=4,
+        metadata={
+            "help": "Number of threads to use in bert_score.score()"
+        },
+    )
