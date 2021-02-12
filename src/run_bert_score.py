@@ -35,6 +35,15 @@ class DataEvaluationArguments(DataTrainingArguments):
             "help": "Fraction of dataset or # of samples to use for evaluation."
         }
     )
+    batch_size: int = field(
+        default=64, metadata={"help": "Batch size per GPU"}
+    )
+    num_workers: int = field(
+        default=4,
+        metadata={
+            "help": "Number of threads to use in bert_score.score()"
+        },
+    )
 
 
 def main():
@@ -72,7 +81,13 @@ def main():
     assert len(test_data) == len(predictions)
 
     precision, recall, f1_measure = score(
-        predictions["text"], test_data["title"], lang="ru", verbose=True)
+        cands=predictions["text"],
+        refs=test_data["title"],
+        lang="ru",
+        verbose=True,
+        batch_size=args.batch_size,
+        nthreads=args.num_workers,
+    )
 
     metrics = dict(
         min_precision=precision.min().item(),
