@@ -5,3 +5,4 @@ nltk>=3.5
 rouge>=1.0.0
 torch
 transformers>=4.2.1
+bert-score>=0.3.7
